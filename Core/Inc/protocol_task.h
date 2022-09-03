@@ -10,6 +10,7 @@
 #define PROTOCOL_TIMEOUT 500
 
 #define UART1_TX_FINISH 0x01
+#define USB_TX_FINISH 0x2
 
 #define CONNECTED 0
 #define DISCONNECTED 1
@@ -27,6 +28,7 @@ struct ProtocolMsg {
   uint16_t MsgLen;
 };
 
+extern uint8_t ProtocolBuff[PROTOCOL_MSG_LEN];
 typedef struct
 {
   char CmdName[DEBUG_CMD_NAME_MAX_LEN];
@@ -39,8 +41,6 @@ typedef struct
 
 extern char DEBUG_CMD_SECTOR_Limit;
 extern char DEBUG_CMD_SECTOR_Base;
-
-extern struct ProtocolMsg *pProtocolMsg;
 
 extern osMailQId ProtocolRxMail;
 extern osMailQId ProtocolTxMail;

@@ -9,7 +9,8 @@ osMailQId DbusMail;
 osMailQId CtrlMail;
 osMailQDef(DbusMail, DBUS_MSG_QUENE_SIZE, DbusMsg_t);
 osMailQDef(CtrlMail, CTRL_MSG_QUENE_SIZE, MotionCtrl_t);
-DbusMsg_t *pDbusMsg;
+
+uint8_t DbusBuff[DBUS_MSG_LEN];
 
 osThreadId DbusTaskHandle;
 
@@ -22,8 +23,7 @@ static void DbusTaskEntry(void const *argument)
 
   osDelay(1000);
 
-  pDbusMsg = osMailAlloc(DbusMail, osWaitForever);
-  HAL_UART_Receive_DMA(&huart3, pDbusMsg->Msg, DBUS_MSG_LEN);
+  HAL_UART_Receive_DMA(&huart3, DbusBuff, DBUS_MSG_LEN);
   __HAL_UART_CLEAR_IDLEFLAG(&huart3);
   __HAL_UART_ENABLE_IT(&huart3, UART_IT_IDLE);
   /* Infinite loop */

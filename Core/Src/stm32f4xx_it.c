@@ -57,6 +57,7 @@
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
+extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 extern DMA_HandleTypeDef hdma_usart1_rx;
 extern DMA_HandleTypeDef hdma_usart1_tx;
 extern DMA_HandleTypeDef hdma_usart3_rx;
@@ -251,20 +252,17 @@ void USART1_IRQHandler(void)
     uint8_t temp = USART1->DR;
     UNUSED(temp);
     HAL_UART_AbortReceive(&huart1);
-    if (pProtocolMsg != NULL)
-    {
-      pProtocolMsg->MsgLen = PROTOCOL_MSG_LEN - huart1.hdmarx->Instance->NDTR;
-
-      osMailPut(ProtocolRxMail, pProtocolMsg);
-    }
-    pProtocolMsg = osMailAlloc(ProtocolRxMail, 0);
+    struct ProtocolMsg *pProtocolMsg = osMailAlloc(ProtocolRxMail, 0);
     if (pProtocolMsg == NULL)
     {
       //error
     }
     else
     {
-      HAL_UART_Receive_DMA(&huart1, pProtocolMsg->Msg, PROTOCOL_MSG_LEN);
+      pProtocolMsg->MsgLen = PROTOCOL_MSG_LEN - huart1.hdmarx->Instance->NDTR;
+      memcpy(pProtocolMsg->Msg, ProtocolBuff, pProtocolMsg->MsgLen);
+      osMailPut(ProtocolRxMail, pProtocolMsg);
+      HAL_UART_Receive_DMA(&huart1, ProtocolBuff, PROTOCOL_MSG_LEN);
     }
   }
   /* USER CODE END USART1_IRQn 1 */
@@ -286,20 +284,16 @@ void USART3_IRQHandler(void)
     UNUSED(temp);
     HAL_UART_AbortReceive(&huart3);
 
-    if (pDbusMsg != NULL)
-    {
-      pDbusMsg->MsgLen = DBUS_MSG_LEN - huart3.hdmarx->Instance->NDTR;
-
-      osMailPut(DbusMail, pDbusMsg);
-    }
-    pDbusMsg = osMailAlloc(DbusMail, 0);
+    DbusMsg_t *pDbusMsg = osMailAlloc(DbusMail, 0);
     if (pDbusMsg == NULL)
     {
       //error
     }
     else
     {
-      HAL_UART_Receive_DMA(&huart3, pDbusMsg->Msg, DBUS_MSG_LEN);
+      pDbusMsg->MsgLen = DBUS_MSG_LEN - huart3.hdmarx->Instance->NDTR;
+      memcpy(pDbusMsg->Msg, DbusBuff, pDbusMsg->MsgLen);
+      HAL_UART_Receive_DMA(&huart3, DbusBuff, DBUS_MSG_LEN);
     }
   }
   /* USER CODE END USART3_IRQn 1 */
@@ -317,6 +311,20 @@ void TIM6_DAC_IRQHandler(void)
   /* USER CODE BEGIN TIM6_DAC_IRQn 1 */
 
   /* USER CODE END TIM6_DAC_IRQn 1 */
+}
+
+/**
+  * @brief This function handles USB On The Go FS global interrupt.
+  */
+void OTG_FS_IRQHandler(void)
+{
+  /* USER CODE BEGIN OTG_FS_IRQn 0 */
+
+  /* USER CODE END OTG_FS_IRQn 0 */
+  HAL_PCD_IRQHandler(&hpcd_USB_OTG_FS);
+  /* USER CODE BEGIN OTG_FS_IRQn 1 */
+
+  /* USER CODE END OTG_FS_IRQn 1 */
 }
 
 /**

@@ -23,6 +23,8 @@ typedef struct{
 	uint16_t MsgLen;
 }DbusMsg_t;
 
+extern uint8_t DbusBuff[DBUS_MSG_LEN];
+
 extern osMailQId DbusMail;
 extern osMailQId CtrlMail;
 

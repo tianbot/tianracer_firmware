@@ -7,15 +7,16 @@
 #include "dbus.h"
 #include "stdlib.h"
 #include "string.h"
+#include "usbd_cdc_if.h"
 osMailQId ProtocolRxMail;
 osMailQId ProtocolTxMail;
 osMailQDef(ProtocolRxMail, PROTOCOL_MSG_QUENE_SIZE, struct ProtocolMsg);
 osMailQDef(ProtocolTxMail, PROTOCOL_MSG_QUENE_SIZE, struct ProtocolMsg);
-struct ProtocolMsg *pProtocolMsg;
 
 osThreadId ProtocolSendTaskHandle;
 osThreadId ProtocolRecvTaskHandle;
 
+uint8_t ProtocolBuff[PROTOCOL_MSG_LEN];
 uint8_t ConnectStatus = DISCONNECTED;
 
 static void BeepConnect(void)
@@ -109,7 +110,7 @@ static void ProtocolProcess(uint8_t *Buf, uint8_t Len)
   char *argv[CFG_MAXARGS];
   int argc;
 
-  if (offset + Len >= PROTOCOL_MSG_LEN) //ignore msg
+  if (offset + Len >= PROTOCOL_MSG_LEN) // ignore msg
   {
     offset = 0;
     return;
@@ -121,13 +122,13 @@ static void ProtocolProcess(uint8_t *Buf, uint8_t Len)
     return;
   }
 
-  if (p->head != PROTOCOL_HEAD) //ignore msg
+  if (p->head != PROTOCOL_HEAD) // ignore msg
   {
     offset = 0;
     return;
   }
 
-  if (p->len >= PROTOCOL_MSG_LEN - 5) //ignore msg
+  if (p->len >= PROTOCOL_MSG_LEN - 5) // ignore msg
   {
     offset = 0;
     return;
@@ -140,7 +141,7 @@ static void ProtocolProcess(uint8_t *Buf, uint8_t Len)
 
   offset = 0;
 
-  for (i = 4; i < p->len + 5; i++) //bcc calc from pack type
+  for (i = 4; i < p->len + 5; i++) // bcc calc from pack type
   {
     bcc ^= local_buf[i];
   }
@@ -183,13 +184,13 @@ static void ProtocolProcess(uint8_t *Buf, uint8_t Len)
       break;
 
     case PACK_TYPE_HEART_BEAT:
-      //ProtocolSend(PACK_TYPE_HEART_BEAT_RESPONSE, NULL, 0);
+      // ProtocolSend(PACK_TYPE_HEART_BEAT_RESPONSE, NULL, 0);
       break;
 
     case PACK_TYPE_DEBUG:
       length = (uint32_t)(&DEBUG_CMD_SECTOR_Limit - &DEBUG_CMD_SECTOR_Base);
       base = (uint32_t)&DEBUG_CMD_SECTOR_Base;
-      p->data[p->len-2] = '\0';
+      p->data[p->len - 2] = '\0';
       argc = ParseLine((char *)p->data, argv);
       pCmd = (DebugCmd_t *)base;
       for (i = 0; i < length / sizeof(DebugCmd_t); i++)
@@ -218,8 +219,7 @@ static void ProtocolRecvTaskEntry(void const *argument)
   osEvent evt;
   struct ProtocolMsg *p;
   osDelay(5000);
-  pProtocolMsg = osMailAlloc(ProtocolRxMail, osWaitForever);
-  HAL_UART_Receive_DMA(&huart1, pProtocolMsg->Msg, PROTOCOL_MSG_LEN);
+  HAL_UART_Receive_DMA(&huart1, ProtocolBuff, PROTOCOL_MSG_LEN);
   __HAL_UART_CLEAR_IDLEFLAG(&huart1);
   __HAL_UART_ENABLE_IT(&huart1, UART_IT_IDLE);
   /* Infinite loop */
@@ -244,7 +244,7 @@ static void ProtocolRecvTaskEntry(void const *argument)
           ConnectStatus = DISCONNECTED;
           BeepDisconnect();
         }
-        //disconnect
+        // disconnect
         MotionCtrl_t *pMotionData = osMailAlloc(CtrlMail, osWaitForever);
         if (pMotionData != NULL)
         {
@@ -270,8 +270,16 @@ static void ProtocolSendTaskEntry(void const *argument)
     if (evt.status == osEventMail)
     {
       p = evt.value.p;
-      HAL_UART_Transmit_DMA(&huart1, p->Msg, p->MsgLen);
-      osSignalWait(UART1_TX_FINISH, osWaitForever);
+      if (bUSBCommunicate)
+      {
+        CDC_Transmit_FS(p->Msg, p->MsgLen);
+        osSignalWait(USB_TX_FINISH, osWaitForever);
+      }
+      else
+      {
+        HAL_UART_Transmit_DMA(&huart1, p->Msg, p->MsgLen);
+        osSignalWait(UART1_TX_FINISH, osWaitForever);
+      }
       osMailFree(ProtocolTxMail, p);
     }
   }
@@ -299,18 +307,18 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
   if (huart->Instance == USART1)
   {
-    pProtocolMsg->MsgLen = PROTOCOL_MSG_LEN - huart1.hdmarx->Instance->NDTR;
-
-    osMailPut(ProtocolRxMail, pProtocolMsg);
-
-    pProtocolMsg = osMailAlloc(ProtocolRxMail, 0);
+    HAL_UART_AbortReceive(&huart1);
+    struct ProtocolMsg *pProtocolMsg = osMailAlloc(ProtocolRxMail, 0);
     if (pProtocolMsg == NULL)
     {
-      //error
+      // error
     }
     else
     {
-      HAL_UART_Receive_DMA(&huart1, pProtocolMsg->Msg, PROTOCOL_MSG_LEN);
+      pProtocolMsg->MsgLen = PROTOCOL_MSG_LEN - huart1.hdmarx->Instance->NDTR;
+      memcpy(pProtocolMsg->Msg, ProtocolBuff, pProtocolMsg->MsgLen);
+      osMailPut(ProtocolRxMail, pProtocolMsg);
+      HAL_UART_Receive_DMA(&huart1, ProtocolBuff, PROTOCOL_MSG_LEN);
     }
   }
 }
