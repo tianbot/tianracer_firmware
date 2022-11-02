@@ -18,6 +18,7 @@ osThreadId ProtocolRecvTaskHandle;
 
 uint8_t ProtocolBuff[PROTOCOL_MSG_LEN];
 uint8_t ConnectStatus = DISCONNECTED;
+extern USBD_HandleTypeDef hUsbDeviceHS;
 
 static void BeepConnect(void)
 {
@@ -152,6 +153,10 @@ static void ProtocolProcess(uint8_t *Buf, uint8_t Len)
       ConnectStatus = CONNECTED;
       BeepConnect();
     }
+    if ((CtrlFlag != CTRL_TYPE_PC) && (p->pack_type != PACK_TYPE_DEBUG))
+    {
+      return;
+    }
     switch (p->pack_type)
     {
     case PACK_TYPE_CMD_VEL:
@@ -229,22 +234,20 @@ static void ProtocolRecvTaskEntry(void const *argument)
     if (evt.status == osEventMail)
     {
       p = evt.value.p;
-      if (CtrlFlag == CTRL_TYPE_PC)
-      {
-        ProtocolProcess(p->Msg, p->MsgLen);
-      }
+      ProtocolProcess(p->Msg, p->MsgLen);
       osMailFree(ProtocolRxMail, p);
     }
     else if (evt.status == osEventTimeout)
     {
+      if (ConnectStatus == CONNECTED)
+      {
+        ConnectStatus = DISCONNECTED;
+        BeepDisconnect();
+      }
+      // disconnect
       if (CtrlFlag == CTRL_TYPE_PC)
       {
-        if (ConnectStatus == CONNECTED)
-        {
-          ConnectStatus = DISCONNECTED;
-          BeepDisconnect();
-        }
-        // disconnect
+
         MotionCtrl_t *pMotionData = osMailAlloc(CtrlMail, osWaitForever);
         if (pMotionData != NULL)
         {
@@ -270,10 +273,10 @@ static void ProtocolSendTaskEntry(void const *argument)
     if (evt.status == osEventMail)
     {
       p = evt.value.p;
-      if (bUSBCommunicate)
+      if (hUsbDeviceHS.dev_state == USBD_STATE_CONFIGURED)
       {
-        CDC_Transmit_FS(p->Msg, p->MsgLen);
-        osSignalWait(USB_TX_FINISH, osWaitForever);
+        CDC_Transmit_HS(p->Msg, p->MsgLen);
+        osSignalWait(USB_TX_FINISH, USB_TX_TIMEOUT);
       }
       else
       {

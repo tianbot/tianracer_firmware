@@ -11,7 +11,7 @@
 
 #define UART1_TX_FINISH 0x01
 #define USB_TX_FINISH 0x2
-
+#define USB_TX_TIMEOUT 10
 #define CONNECTED 0
 #define DISCONNECTED 1
 
