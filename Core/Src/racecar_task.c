@@ -76,6 +76,7 @@ static void RacecarCtrlTaskEntry(void const *argument)
       if (v == 0)
       {
         motorPwm = 0;
+        PidInit(&MotorPid, POSITION_PID, param.pid.max_out, param.pid.i_limit, param.pid.p, param.pid.i, param.pid.d);
       }
 
       TIM1->CCR1 = LIMIT(MOTOR_CAL(motorPwm), MOTOR_MIN, MOTOR_MAX);

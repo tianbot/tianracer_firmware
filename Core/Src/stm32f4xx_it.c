@@ -294,6 +294,7 @@ void USART3_IRQHandler(void)
     {
       pDbusMsg->MsgLen = DBUS_MSG_LEN - huart3.hdmarx->Instance->NDTR;
       memcpy(pDbusMsg->Msg, DbusBuff, pDbusMsg->MsgLen);
+      osMailPut(DbusMail, pDbusMsg);
       HAL_UART_Receive_DMA(&huart3, DbusBuff, DBUS_MSG_LEN);
     }
   }
